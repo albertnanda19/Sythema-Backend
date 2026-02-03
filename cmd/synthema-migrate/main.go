@@ -4,7 +4,9 @@ import (
 	"context"
 	"log"
 
+	"os"
 	"synthema/internal/adapters/postgres"
+
 	"synthema/internal/config"
 	"synthema/internal/migration"
 )
@@ -28,7 +30,21 @@ func main() {
 		_ = postgres.Close(pool)
 	}()
 
-	if err := migration.ApplyAll(ctx, pool, "migrations"); err != nil {
-		log.Fatal(err)
+	command := "up"
+	if len(os.Args) > 1 {
+		command = os.Args[1]
+	}
+
+	switch command {
+	case "up":
+		if err := migration.ApplyAll(ctx, pool, "migrations"); err != nil {
+			log.Fatal(err)
+		}
+	case "down":
+		if err := migration.RollbackLast(ctx, pool, "migrations"); err != nil {
+			log.Fatal(err)
+		}
+	default:
+		log.Fatalf("unknown command: %s", command)
 	}
 }
