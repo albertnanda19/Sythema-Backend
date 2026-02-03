@@ -1,5 +1,6 @@
 ## Folder Structure
 
+```
 backend/
 ├── cmd/
 │ ├── synthema-api/
@@ -111,3 +112,4 @@ backend/
 │
 ├── go.mod
 └── go.sum
+```
