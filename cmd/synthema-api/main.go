@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"strconv"
 
 	"synthema/internal/bootstrap"
 )
@@ -13,4 +14,8 @@ func main() {
 	}
 
 	app.Logger.Info("bootstrap complete")
+
+	if err := app.App.Listen(":" + strconv.Itoa(app.Config.API.Port)); err != nil {
+		log.Fatal(err)
+	}
 }
