@@ -35,6 +35,10 @@ type RedisConfig struct {
 }
 
 func LoadFromEnv() (Config, error) {
+	if err := loadDotEnvIfPresent(".env"); err != nil {
+		return Config{}, err
+	}
+
 	port := 8080
 	if v := os.Getenv("SYNTHEMA_API_PORT"); v != "" {
 		p, err := strconv.Atoi(v)
@@ -42,6 +46,11 @@ func LoadFromEnv() (Config, error) {
 			return Config{}, err
 		}
 		port = p
+	}
+
+	dsn := os.Getenv("SYNTHEMA_POSTGRES_DSN")
+	if dsn == "" {
+		dsn = os.Getenv("DATABASE_URL")
 	}
 
 	grace := 10 * time.Second
@@ -61,7 +70,7 @@ func LoadFromEnv() (Config, error) {
 			Host: getenvDefault("SYNTHEMA_API_HOST", "0.0.0.0"),
 			Port: port,
 		},
-		Postgres:            PostgresConfig{},
+		Postgres:            PostgresConfig{DSN: dsn},
 		Redis:               RedisConfig{},
 		ShutdownGracePeriod: grace,
 	}
