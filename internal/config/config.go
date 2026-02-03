@@ -1,14 +1,15 @@
 package config
 
 import (
-	"errors"
 	"os"
 	"strconv"
 	"time"
 )
 
 type Config struct {
-	Env string
+	AppName     string
+	Environment string
+	LogLevel    string
 
 	API APIConfig
 
@@ -43,15 +44,6 @@ func LoadFromEnv() (Config, error) {
 		port = p
 	}
 
-	redisDB := 0
-	if v := os.Getenv("SYNTHEMA_REDIS_DB"); v != "" {
-		db, err := strconv.Atoi(v)
-		if err != nil {
-			return Config{}, err
-		}
-		redisDB = db
-	}
-
 	grace := 10 * time.Second
 	if v := os.Getenv("SYNTHEMA_SHUTDOWN_GRACE"); v != "" {
 		d, err := time.ParseDuration(v)
@@ -62,28 +54,16 @@ func LoadFromEnv() (Config, error) {
 	}
 
 	cfg := Config{
-		Env: os.Getenv("SYNTHEMA_ENV"),
+		AppName:     getenvDefault("SYNTHEMA_APP_NAME", "synthema"),
+		Environment: getenvDefault("SYNTHEMA_ENV", "dev"),
+		LogLevel:    getenvDefault("SYNTHEMA_LOG_LEVEL", "info"),
 		API: APIConfig{
 			Host: getenvDefault("SYNTHEMA_API_HOST", "0.0.0.0"),
 			Port: port,
 		},
-		Postgres: PostgresConfig{
-			DSN: os.Getenv("SYNTHEMA_POSTGRES_DSN"),
-		},
-		Redis: RedisConfig{
-			Addr:     getenvDefault("SYNTHEMA_REDIS_ADDR", "127.0.0.1:6379"),
-			Password: os.Getenv("SYNTHEMA_REDIS_PASSWORD"),
-			DB:       redisDB,
-		},
+		Postgres:            PostgresConfig{},
+		Redis:               RedisConfig{},
 		ShutdownGracePeriod: grace,
-	}
-
-	if cfg.Env == "" {
-		cfg.Env = "dev"
-	}
-
-	if cfg.API.Port <= 0 {
-		return Config{}, errors.New("invalid SYNTHEMA_API_PORT")
 	}
 
 	return cfg, nil

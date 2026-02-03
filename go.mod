@@ -1,6 +1,6 @@
 module synthema
 
-go 1.25
+go 1.22
 
 require (
 	github.com/gofiber/fiber/v2 v2.52.6
