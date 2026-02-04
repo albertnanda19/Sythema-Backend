@@ -1,6 +1,15 @@
 package domain
 
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
 type Role struct {
-	ID   int64
-	Name string
+	ID          uuid.UUID
+	Name        string
+	Description *string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }

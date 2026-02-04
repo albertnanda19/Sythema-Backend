@@ -50,13 +50,14 @@ func BootstrapAPI() (APIApp, error) {
 
 	app := fiber.New()
 
-	app.Post("/auth/login", authHandler.Login)
-	app.Post("/auth/logout", authHandler.Logout)
+	v1 := app.Group("/api/v1")
 
-	api := app.Group("/api", http.AuthMiddleware(sessionRepo))
+	v1.Post("/auth/login", authHandler.Login)
+	v1.Post("/auth/logout", http.AuthMiddleware(userRepo, sessionRepo), authHandler.Logout)
+
+	api := v1.Group("", http.AuthMiddleware(userRepo, sessionRepo))
 	api.Get("/protected", func(c *fiber.Ctx) error {
-		userID := c.Locals("userID").(int64)
-		return c.JSON(fiber.Map{"message": "welcome to the protected area", "user_id": userID})
+		return c.JSON(fiber.Map{"message": "welcome to the protected area", "user_id": c.Locals("userID")})
 	})
 
 	return APIApp{Config: cfg, Logger: logger, App: app}, nil

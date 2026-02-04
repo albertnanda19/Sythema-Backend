@@ -2,10 +2,10 @@ package service
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"time"
+
+	"github.com/google/uuid"
 
 	"synthema/internal/domain"
 	"synthema/internal/repository"
@@ -19,8 +19,8 @@ var (
 
 // AuthService provides authentication services.
 type AuthService interface {
-	Authenticate(ctx context.Context, email, password string) (*domain.Session, error)
-	Invalidate(ctx context.Context, sessionID string) error
+	Authenticate(ctx context.Context, email, password string) (*domain.User, *domain.AuthSession, error)
+	RevokeSession(ctx context.Context, sessionID uuid.UUID) error
 }
 
 // NewAuthService creates a new auth service.
@@ -37,48 +37,36 @@ type authService struct {
 }
 
 // Authenticate authenticates a user and creates a session.
-func (s *authService) Authenticate(ctx context.Context, email, password string) (*domain.Session, error) {
+func (s *authService) Authenticate(ctx context.Context, email, password string) (*domain.User, *domain.AuthSession, error) {
 	user, err := s.userRepo.FindByEmail(ctx, email)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if user == nil {
-		return nil, ErrInvalidCredentials
+		return nil, nil, ErrInvalidCredentials
+	}
+	if !user.IsActive {
+		return nil, nil, ErrInvalidCredentials
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-		return nil, ErrInvalidCredentials
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		return nil, nil, ErrInvalidCredentials
 	}
 
-	sessionID, err := generateSessionID()
-	if err != nil {
-		return nil, err
-	}
-
-	session := &domain.Session{
-		ID:        sessionID,
+	session := &domain.AuthSession{
+		ID:        uuid.New(),
 		UserID:    user.ID,
 		ExpiresAt: time.Now().Add(24 * time.Hour),
-		CreatedAt: time.Now(),
 	}
 
 	if err := s.sessionRepo.Create(ctx, session); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return session, nil
+	return user, session, nil
 }
 
-// Invalidate invalidates a session.
-func (s *authService) Invalidate(ctx context.Context, sessionID string) error {
-	return s.sessionRepo.Delete(ctx, sessionID)
-}
-
-func generateSessionID() (string, error) {
-	b := make([]byte, 32)
-	_, err := rand.Read(b)
-	if err != nil {
-		return "", err
-	}
-	return base64.URLEncoding.EncodeToString(b), nil
+// RevokeSession revokes a session.
+func (s *authService) RevokeSession(ctx context.Context, sessionID uuid.UUID) error {
+	return s.sessionRepo.Revoke(ctx, sessionID, time.Now())
 }
