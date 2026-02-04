@@ -2,19 +2,15 @@ package service
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
 
 	"synthema/internal/domain"
+	appErrors "synthema/internal/errors"
 	"synthema/internal/repository"
 
 	"golang.org/x/crypto/bcrypt"
-)
-
-var (
-	ErrInvalidCredentials = errors.New("invalid credentials")
 )
 
 type SessionMeta struct {
@@ -50,22 +46,22 @@ type authService struct {
 func (s *authService) Authenticate(ctx context.Context, email, password string, meta SessionMeta) (*domain.User, *domain.AuthSession, error) {
 	user, err := s.userRepo.FindByEmail(ctx, email)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, appErrors.Internal(err)
 	}
 	if user == nil {
-		return nil, nil, ErrInvalidCredentials
+		return nil, nil, appErrors.InvalidCredentials()
 	}
 	if !user.IsActive {
-		return nil, nil, ErrInvalidCredentials
+		return nil, nil, appErrors.InvalidCredentials()
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return nil, nil, ErrInvalidCredentials
+		return nil, nil, appErrors.InvalidCredentials()
 	}
 
 	roles, err := s.userRepo.ListRolesByUserID(ctx, user.ID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, appErrors.Internal(err)
 	}
 	user.Roles = roles
 
@@ -86,7 +82,7 @@ func (s *authService) Authenticate(ctx context.Context, email, password string, 
 	}
 
 	if err := s.sessionRepo.Create(ctx, session); err != nil {
-		return nil, nil, err
+		return nil, nil, appErrors.Internal(err)
 	}
 
 	return user, session, nil
@@ -94,5 +90,8 @@ func (s *authService) Authenticate(ctx context.Context, email, password string, 
 
 // RevokeSession revokes a session.
 func (s *authService) RevokeSession(ctx context.Context, sessionID uuid.UUID) error {
-	return s.sessionRepo.Revoke(ctx, sessionID, time.Now())
+	if err := s.sessionRepo.Revoke(ctx, sessionID, time.Now()); err != nil {
+		return appErrors.Internal(err)
+	}
+	return nil
 }

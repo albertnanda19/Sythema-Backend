@@ -7,19 +7,14 @@ import (
 
 	domainerrors "synthema/internal/errors"
 	"synthema/internal/observability"
-	"synthema/internal/service"
 )
 
 func MapError(err error) (int, string) {
 	if err == nil {
-		return fiber.StatusInternalServerError, MsgInternalError
+		return fiber.StatusInternalServerError, domainerrors.MsgInternal
 	}
 
-	if errors.Is(err, service.ErrInvalidCredentials) {
-		return fiber.StatusUnauthorized, MsgInvalidCreds
-	}
-
-	var de *domainerrors.DomainError
+	var de domainerrors.Error
 	if errors.As(err, &de) {
 		return de.Status(), de.Message()
 	}
@@ -29,32 +24,32 @@ func MapError(err error) (int, string) {
 		s := fe.Code
 		switch s {
 		case fiber.StatusNotFound:
-			return s, MsgNotFound
+			return s, domainerrors.MsgNotFound
 		case fiber.StatusUnauthorized:
-			return s, MsgUnauthorized
+			return s, domainerrors.MsgUnauthorized
 		case fiber.StatusForbidden:
-			return s, MsgForbidden
+			return s, domainerrors.MsgForbidden
 		case fiber.StatusBadRequest:
-			return s, MsgInvalidRequest
+			return s, domainerrors.MsgInvalidRequest
 		default:
 			if s >= 500 {
-				return s, MsgInternalError
+				return s, domainerrors.MsgInternal
 			}
 			if fe.Message != "" {
 				return s, fe.Message
 			}
-			return s, MsgInvalidRequest
+			return s, domainerrors.MsgInvalidRequest
 		}
 	}
 
-	return fiber.StatusInternalServerError, MsgInternalError
+	return fiber.StatusInternalServerError, domainerrors.MsgInternal
 }
 
 func FiberErrorHandler(logger *observability.Logger) fiber.ErrorHandler {
 	return func(c *fiber.Ctx, err error) error {
 		status, msg := MapError(err)
 		if status >= 500 && logger != nil {
-			logger.ErrorContext(c.Context(), msg)
+			logger.ErrorContext(c.Context(), err.Error())
 		}
 		return Fail(c, status, msg)
 	}

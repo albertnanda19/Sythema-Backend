@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 
 	httpapi "synthema/internal/app/api/http"
 	"synthema/internal/app/health"
@@ -23,6 +24,7 @@ type Server struct {
 
 func NewServer(cfg config.Config, logger *observability.Logger, healthHandler *health.Handler) *Server {
 	app := fiber.New(fiber.Config{ErrorHandler: apihttp.FiberErrorHandler(logger)})
+	app.Use(recover.New())
 
 	httpapi.RegisterRoutes(app, healthHandler)
 

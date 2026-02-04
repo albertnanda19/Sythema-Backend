@@ -6,6 +6,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
+	appErrors "synthema/internal/errors"
 	"synthema/internal/repository"
 )
 
@@ -16,36 +17,36 @@ func AuthMiddleware(userRepo repository.UserRepository, sessionRepo repository.S
 	return func(c *fiber.Ctx) error {
 		sessionIDRaw := c.Cookies(cookieName)
 		if sessionIDRaw == "" {
-			return Fail(c, fiber.StatusUnauthorized, MsgUnauthorized)
+			return appErrors.Unauthorized()
 		}
 
 		sessionID, err := uuid.Parse(sessionIDRaw)
 		if err != nil {
-			return Fail(c, fiber.StatusUnauthorized, MsgUnauthorized)
+			return appErrors.Unauthorized()
 		}
 
 		session, err := sessionRepo.FindActiveByID(c.Context(), sessionID)
 		if err != nil {
-			return err
+			return appErrors.Internal(err)
 		}
 		if session == nil {
-			return Fail(c, fiber.StatusUnauthorized, MsgUnauthorized)
+			return appErrors.Unauthorized()
 		}
 
 		user, err := userRepo.FindByID(c.Context(), session.UserID)
 		if err != nil {
-			return err
+			return appErrors.Internal(err)
 		}
 		if user == nil {
-			return Fail(c, fiber.StatusUnauthorized, MsgUnauthorized)
+			return appErrors.Unauthorized()
 		}
 		if !user.IsActive {
-			return Fail(c, fiber.StatusUnauthorized, MsgUnauthorized)
+			return appErrors.Unauthorized()
 		}
 
 		roles, err := userRepo.ListRolesByUserID(c.Context(), user.ID)
 		if err != nil {
-			return err
+			return appErrors.Internal(err)
 		}
 		user.Roles = roles
 

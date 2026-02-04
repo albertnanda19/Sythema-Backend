@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
+	appErrors "synthema/internal/errors"
 	apihttp "synthema/internal/http"
 )
 
@@ -69,7 +70,7 @@ func (h *Handler) Healthz(c *fiber.Ctx) error {
 	}
 
 	if !healthy {
-		return apihttp.Fail(c, fiber.StatusServiceUnavailable, apihttp.MsgHealthUnhealthy)
+		return appErrors.ServiceUnavailable(nil)
 	}
 	return apihttp.Success(c, fiber.StatusOK, apihttp.MsgHealthOK, nil)
 }

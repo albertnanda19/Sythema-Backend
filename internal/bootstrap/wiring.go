@@ -14,6 +14,7 @@ import (
 	"synthema/internal/service"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/redis/go-redis/v9"
 )
@@ -71,6 +72,7 @@ func BootstrapAPI() (APIApp, error) {
 	authHandler := http.NewAuthHandler(authService, cfg.Auth.CookieName, cfg.Auth.CookieSecure)
 
 	app := fiber.New(fiber.Config{ErrorHandler: http.FiberErrorHandler(logger)})
+	app.Use(recover.New())
 
 	v1 := app.Group("/api/v1")
 

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"synthema/internal/domain"
+	appErrors "synthema/internal/errors"
 	"synthema/internal/service"
 
 	"github.com/gofiber/fiber/v2"
@@ -36,17 +37,17 @@ type LoginRequest struct {
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	var req LoginRequest
 	if err := c.BodyParser(&req); err != nil {
-		return Fail(c, fiber.StatusBadRequest, MsgInvalidRequest)
+		return appErrors.InvalidRequest()
 	}
 	req.Email = strings.TrimSpace(req.Email)
 	if req.Email == "" || req.Password == "" {
-		return Fail(c, fiber.StatusBadRequest, MsgInvalidRequest)
+		return appErrors.InvalidRequest()
 	}
 	if len(req.Email) > 320 {
-		return Fail(c, fiber.StatusBadRequest, MsgInvalidRequest)
+		return appErrors.InvalidRequest()
 	}
 	if _, err := mail.ParseAddress(req.Email); err != nil {
-		return Fail(c, fiber.StatusBadRequest, MsgInvalidRequest)
+		return appErrors.InvalidRequest()
 	}
 
 	userAgent := strings.TrimSpace(c.Get("User-Agent"))
@@ -60,9 +61,6 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 	user, session, err := h.authService.Authenticate(c.Context(), req.Email, req.Password, service.SessionMeta{UserAgent: userAgent, IPAddress: ipAddress})
 	if err != nil {
-		if err == service.ErrInvalidCredentials {
-			return Fail(c, fiber.StatusUnauthorized, MsgInvalidCreds)
-		}
 		return err
 	}
 	maxAgeSeconds := int(time.Until(session.ExpiresAt).Seconds())
@@ -102,11 +100,11 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 	sessionAny := c.Locals("authSession")
 	if sessionAny == nil {
-		return Fail(c, fiber.StatusUnauthorized, MsgUnauthorized)
+		return appErrors.Unauthorized()
 	}
 	session, ok := sessionAny.(*domain.AuthSession)
 	if !ok || session == nil {
-		return Fail(c, fiber.StatusUnauthorized, MsgUnauthorized)
+		return appErrors.Unauthorized()
 	}
 
 	if err := h.authService.RevokeSession(c.Context(), session.ID); err != nil {
