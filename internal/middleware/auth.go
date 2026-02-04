@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"errors"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -20,20 +21,26 @@ func Auth(userRepo repositories.UserRepository, sessionRepo repositories.Session
 	return func(c *fiber.Ctx) error {
 		sessionIDRaw := c.Cookies(cookieName)
 		if sessionIDRaw == "" {
-			return appErrors.Unauthorized()
+			return appErrors.MissingSessionCookie()
 		}
 
 		sessionID, err := uuid.Parse(sessionIDRaw)
 		if err != nil {
-			return appErrors.Unauthorized()
+			return appErrors.InvalidSessionCookie()
 		}
 
-		session, err := sessionRepo.FindActiveByID(c.UserContext(), sessionID)
+		session, err := sessionRepo.FindByID(c.UserContext(), sessionID)
 		if err != nil {
 			return appErrors.Internal(err)
 		}
 		if session == nil {
-			return appErrors.Unauthorized()
+			return appErrors.InvalidSessionCookie()
+		}
+		if session.RevokedAt != nil {
+			return appErrors.SessionRevoked()
+		}
+		if !session.ExpiresAt.After(time.Now()) {
+			return appErrors.SessionExpired()
 		}
 
 		user, err := userRepo.FindByID(c.UserContext(), session.UserID)
@@ -44,7 +51,7 @@ func Auth(userRepo repositories.UserRepository, sessionRepo repositories.Session
 			return appErrors.Unauthorized()
 		}
 		if !user.IsActive {
-			return appErrors.Unauthorized()
+			return appErrors.UserInactive()
 		}
 
 		roles, err := userRepo.ListRolesByUserID(c.UserContext(), user.ID)

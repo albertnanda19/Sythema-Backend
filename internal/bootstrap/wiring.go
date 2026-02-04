@@ -18,6 +18,7 @@ import (
 	"synthema/internal/service"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/redis/go-redis/v9"
@@ -77,6 +78,21 @@ func BootstrapAPI() (APIApp, error) {
 	authHandler := http.NewAuthHandler(authService, cfg.Auth.CookieName, cfg.Auth.CookieSecure)
 
 	app := fiber.New(fiber.Config{ErrorHandler: http.FiberErrorHandler(logger)})
+	app.Use(middleware.RequestLogger(logger))
+	app.Use(cors.New(cors.Config{
+		AllowOriginsFunc: func(origin string) bool { return true },
+		AllowCredentials: true,
+		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+		AllowHeaders:     "*",
+		MaxAge:           3600,
+	}))
+	app.Use(func(c *fiber.Ctx) error {
+		err := c.Next()
+		if c.Get("Origin") == "" {
+			c.Set("Access-Control-Allow-Origin", "*")
+		}
+		return err
+	})
 	app.Use(recover.New())
 
 	v1 := app.Group("/api/v1")
@@ -92,10 +108,11 @@ func BootstrapAPI() (APIApp, error) {
 	app.Get("/healthz", healthHandler.Healthz)
 
 	v1.Post("/auth/login", authHandler.Login)
-	v1.Post("/auth/logout", authMW, authHandler.Logout)
 
 	meHandler := authhandlers.NewMeHandler()
-	routes.RegisterAuthRoutes(v1, authMW, meHandler)
+	logoutMW := middleware.Logout(cfg.Auth.CookieName)
+	logoutHandler := authhandlers.NewLogoutHandler(authService, cfg.Auth.CookieName, cfg.Auth.CookieSecure)
+	routes.RegisterAuthRoutes(v1, authMW, meHandler, logoutMW, logoutHandler)
 
 	api := v1.Group("", authMW)
 	api.Get("/protected", func(c *fiber.Ctx) error {

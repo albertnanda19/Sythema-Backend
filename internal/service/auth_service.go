@@ -21,6 +21,7 @@ type SessionMeta struct {
 // AuthService provides authentication services.
 type AuthService interface {
 	Authenticate(ctx context.Context, email, password string, meta SessionMeta) (*domain.User, *domain.AuthSession, error)
+	Logout(ctx context.Context, sessionID uuid.UUID) error
 	RevokeSession(ctx context.Context, sessionID uuid.UUID) error
 }
 
@@ -86,6 +87,13 @@ func (s *authService) Authenticate(ctx context.Context, email, password string, 
 	}
 
 	return user, session, nil
+}
+
+func (s *authService) Logout(ctx context.Context, sessionID uuid.UUID) error {
+	if err := s.sessionRepo.Revoke(ctx, sessionID, time.Now()); err != nil {
+		return appErrors.Internal(err)
+	}
+	return nil
 }
 
 // RevokeSession revokes a session.

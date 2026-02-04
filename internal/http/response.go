@@ -17,3 +17,8 @@ func Fail(c *fiber.Ctx, status int, message string) error {
 	resp := APIResponse{Status: status, Message: message, Data: nil}
 	return c.Status(status).JSON(resp)
 }
+
+func FailWithData(c *fiber.Ctx, status int, message string, data any) error {
+	resp := APIResponse{Status: status, Message: message, Data: data}
+	return c.Status(status).JSON(resp)
+}
