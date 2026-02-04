@@ -9,10 +9,12 @@ import (
 	"synthema/internal/app/health"
 	"synthema/internal/config"
 	authctx "synthema/internal/context"
+	authhandlers "synthema/internal/handlers/auth"
 	"synthema/internal/http"
 	"synthema/internal/middleware"
 	"synthema/internal/observability"
 	"synthema/internal/repositories"
+	"synthema/internal/routes"
 	"synthema/internal/service"
 
 	"github.com/gofiber/fiber/v2"
@@ -90,8 +92,10 @@ func BootstrapAPI() (APIApp, error) {
 	app.Get("/healthz", healthHandler.Healthz)
 
 	v1.Post("/auth/login", authHandler.Login)
-	v1.Get("/auth/me", authMW, authHandler.Me)
 	v1.Post("/auth/logout", authMW, authHandler.Logout)
+
+	meHandler := authhandlers.NewMeHandler()
+	routes.RegisterAuthRoutes(v1, authMW, meHandler)
 
 	api := v1.Group("", authMW)
 	api.Get("/protected", func(c *fiber.Ctx) error {

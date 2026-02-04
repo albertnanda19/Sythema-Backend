@@ -98,23 +98,6 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	return Success(c, fiber.StatusOK, MsgLoginSuccessful, loginResponse{ID: user.ID, Email: user.Email, Roles: roleNames})
 }
 
-func (h *AuthHandler) Me(c *fiber.Ctx) error {
-	info, ok := authctx.GetAuthInfo(c.UserContext())
-	if !ok {
-		return appErrors.Unauthorized()
-	}
-
-	type meResponse struct {
-		ID    any      `json:"id"`
-		Email string   `json:"email"`
-		Roles []string `json:"roles"`
-	}
-
-	roles := make([]string, len(info.Roles))
-	copy(roles, info.Roles)
-	return Success(c, fiber.StatusOK, MsgMeOK, meResponse{ID: info.UserID, Email: info.Email, Roles: roles})
-}
-
 // Logout handles user logout.
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 	if h.cookieName == "" {
@@ -123,7 +106,7 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 
 	sessionID, ok := authctx.SessionID(c.UserContext())
 	if !ok {
-		return appErrors.Unauthorized()
+		return appErrors.Internal(errors.New("auth context is missing"))
 	}
 
 	if err := h.authService.RevokeSession(c.UserContext(), sessionID); err != nil {
