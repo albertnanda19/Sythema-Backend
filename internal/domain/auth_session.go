@@ -12,4 +12,6 @@ type AuthSession struct {
 	ExpiresAt time.Time
 	RevokedAt *time.Time
 	CreatedAt time.Time
+	UserAgent *string
+	IPAddress *string
 }

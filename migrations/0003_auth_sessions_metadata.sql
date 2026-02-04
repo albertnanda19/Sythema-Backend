@@ -1,0 +1,7 @@
+BEGIN;
+
+ALTER TABLE auth_sessions
+    ADD COLUMN IF NOT EXISTS user_agent TEXT,
+    ADD COLUMN IF NOT EXISTS ip_address TEXT;
+
+COMMIT;

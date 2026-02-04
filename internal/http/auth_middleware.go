@@ -9,9 +9,12 @@ import (
 	"synthema/internal/repository"
 )
 
-func AuthMiddleware(userRepo repository.UserRepository, sessionRepo repository.SessionRepository) fiber.Handler {
+func AuthMiddleware(userRepo repository.UserRepository, sessionRepo repository.SessionRepository, cookieName string) fiber.Handler {
+	if cookieName == "" {
+		cookieName = "session_id"
+	}
 	return func(c *fiber.Ctx) error {
-		sessionIDRaw := c.Cookies("session_id")
+		sessionIDRaw := c.Cookies(cookieName)
 		if sessionIDRaw == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 		}

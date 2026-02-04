@@ -11,7 +11,8 @@ type Config struct {
 	Environment string
 	LogLevel    string
 
-	API APIConfig
+	API  APIConfig
+	Auth AuthConfig
 
 	Postgres PostgresConfig
 	Redis    RedisConfig
@@ -22,6 +23,12 @@ type Config struct {
 type APIConfig struct {
 	Host string
 	Port int
+}
+
+type AuthConfig struct {
+	SessionTTL   time.Duration
+	CookieName   string
+	CookieSecure bool
 }
 
 type PostgresConfig struct {
@@ -62,6 +69,24 @@ func LoadFromEnv() (Config, error) {
 		grace = d
 	}
 
+	sessionTTL := 7 * 24 * time.Hour
+	if v := os.Getenv("SYNTHEMA_AUTH_SESSION_TTL"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return Config{}, err
+		}
+		sessionTTL = d
+	}
+
+	cookieSecure := true
+	if v := os.Getenv("SYNTHEMA_AUTH_COOKIE_SECURE"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return Config{}, err
+		}
+		cookieSecure = b
+	}
+
 	cfg := Config{
 		AppName:     getenvDefault("SYNTHEMA_APP_NAME", "synthema"),
 		Environment: getenvDefault("SYNTHEMA_ENV", "dev"),
@@ -69,6 +94,11 @@ func LoadFromEnv() (Config, error) {
 		API: APIConfig{
 			Host: getenvDefault("SYNTHEMA_API_HOST", "0.0.0.0"),
 			Port: port,
+		},
+		Auth: AuthConfig{
+			SessionTTL:   sessionTTL,
+			CookieName:   getenvDefault("SYNTHEMA_AUTH_COOKIE_NAME", "session_id"),
+			CookieSecure: cookieSecure,
 		},
 		Postgres:            PostgresConfig{DSN: dsn},
 		Redis:               RedisConfig{},

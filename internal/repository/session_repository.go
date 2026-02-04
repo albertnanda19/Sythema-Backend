@@ -26,16 +26,16 @@ type sessionRepository struct {
 
 func (r *sessionRepository) Create(ctx context.Context, session *domain.AuthSession) error {
 	query := `
-		INSERT INTO auth_sessions (id, user_id, expires_at)
-		VALUES ($1, $2, $3)
+		INSERT INTO auth_sessions (id, user_id, expires_at, user_agent, ip_address)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING created_at
 	`
-	return r.db.QueryRowContext(ctx, query, session.ID, session.UserID, session.ExpiresAt).Scan(&session.CreatedAt)
+	return r.db.QueryRowContext(ctx, query, session.ID, session.UserID, session.ExpiresAt, session.UserAgent, session.IPAddress).Scan(&session.CreatedAt)
 }
 
 func (r *sessionRepository) FindActiveByID(ctx context.Context, id uuid.UUID) (*domain.AuthSession, error) {
 	query := `
-		SELECT id, user_id, expires_at, revoked_at, created_at
+		SELECT id, user_id, expires_at, revoked_at, created_at, user_agent, ip_address
 		FROM auth_sessions
 		WHERE id = $1 AND revoked_at IS NULL AND expires_at > now()
 	`
@@ -44,8 +44,10 @@ func (r *sessionRepository) FindActiveByID(ctx context.Context, id uuid.UUID) (*
 	var (
 		s         domain.AuthSession
 		revokedAt sql.NullTime
+		userAgent sql.NullString
+		ipAddress sql.NullString
 	)
-	if err := row.Scan(&s.ID, &s.UserID, &s.ExpiresAt, &revokedAt, &s.CreatedAt); err != nil {
+	if err := row.Scan(&s.ID, &s.UserID, &s.ExpiresAt, &revokedAt, &s.CreatedAt, &userAgent, &ipAddress); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -54,6 +56,14 @@ func (r *sessionRepository) FindActiveByID(ctx context.Context, id uuid.UUID) (*
 	if revokedAt.Valid {
 		t := revokedAt.Time
 		s.RevokedAt = &t
+	}
+	if userAgent.Valid {
+		ua := userAgent.String
+		s.UserAgent = &ua
+	}
+	if ipAddress.Valid {
+		ip := ipAddress.String
+		s.IPAddress = &ip
 	}
 
 	return &s, nil
