@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -36,9 +37,15 @@ type PostgresConfig struct {
 }
 
 type RedisConfig struct {
+	Host     string
+	Port     int
 	Addr     string
 	Password string
 	DB       int
+
+	DialTimeout  time.Duration
+	ReadTimeout  time.Duration
+	WriteTimeout time.Duration
 }
 
 func LoadFromEnv() (Config, error) {
@@ -58,6 +65,63 @@ func LoadFromEnv() (Config, error) {
 	dsn := os.Getenv("SYNTHEMA_POSTGRES_DSN")
 	if dsn == "" {
 		dsn = os.Getenv("DATABASE_URL")
+	}
+
+	redisHost := os.Getenv("REDIS_HOST")
+	redisPortRaw := os.Getenv("REDIS_PORT")
+	var redisCfg RedisConfig
+	if redisHost != "" || redisPortRaw != "" {
+		if redisHost == "" || redisPortRaw == "" {
+			return Config{}, fmt.Errorf("redis requires both REDIS_HOST and REDIS_PORT")
+		}
+		p, err := strconv.Atoi(redisPortRaw)
+		if err != nil {
+			return Config{}, err
+		}
+		db := 0
+		if v := os.Getenv("REDIS_DB"); v != "" {
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				return Config{}, err
+			}
+			db = n
+		}
+
+		dialTimeout := 5 * time.Second
+		if v := os.Getenv("REDIS_DIAL_TIMEOUT"); v != "" {
+			d, err := time.ParseDuration(v)
+			if err != nil {
+				return Config{}, err
+			}
+			dialTimeout = d
+		}
+		readTimeout := 1 * time.Second
+		if v := os.Getenv("REDIS_READ_TIMEOUT"); v != "" {
+			d, err := time.ParseDuration(v)
+			if err != nil {
+				return Config{}, err
+			}
+			readTimeout = d
+		}
+		writeTimeout := 1 * time.Second
+		if v := os.Getenv("REDIS_WRITE_TIMEOUT"); v != "" {
+			d, err := time.ParseDuration(v)
+			if err != nil {
+				return Config{}, err
+			}
+			writeTimeout = d
+		}
+
+		redisCfg = RedisConfig{
+			Host:         redisHost,
+			Port:         p,
+			Addr:         fmt.Sprintf("%s:%d", redisHost, p),
+			Password:     os.Getenv("REDIS_PASSWORD"),
+			DB:           db,
+			DialTimeout:  dialTimeout,
+			ReadTimeout:  readTimeout,
+			WriteTimeout: writeTimeout,
+		}
 	}
 
 	grace := 10 * time.Second
@@ -101,7 +165,7 @@ func LoadFromEnv() (Config, error) {
 			CookieSecure: cookieSecure,
 		},
 		Postgres:            PostgresConfig{DSN: dsn},
-		Redis:               RedisConfig{},
+		Redis:               redisCfg,
 		ShutdownGracePeriod: grace,
 	}
 

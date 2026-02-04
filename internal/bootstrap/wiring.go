@@ -1,8 +1,12 @@
 package bootstrap
 
 import (
+	"context"
 	"database/sql"
+	"time"
 
+	redisadapter "synthema/internal/adapters/redis"
+	"synthema/internal/app/health"
 	"synthema/internal/config"
 	"synthema/internal/http"
 	"synthema/internal/observability"
@@ -11,12 +15,15 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/redis/go-redis/v9"
 )
 
 type APIApp struct {
 	Config config.Config
 	Logger *observability.Logger
 	App    *fiber.App
+	DB     *sql.DB
+	Redis  *redis.Client
 }
 
 type CaptureApp struct {
@@ -40,6 +47,21 @@ func BootstrapAPI() (APIApp, error) {
 	if err != nil {
 		return APIApp{}, err
 	}
+	if err := db.Ping(); err != nil {
+		_ = db.Close()
+		return APIApp{}, err
+	}
+
+	redisClient, err := redisadapter.NewClient(cfg.Redis)
+	if err != nil {
+		_ = db.Close()
+		return APIApp{}, err
+	}
+	if err := redisadapter.Ping(context.Background(), redisClient, cfg.Redis.DialTimeout); err != nil {
+		_ = redisClient.Close()
+		_ = db.Close()
+		return APIApp{}, err
+	}
 
 	userRepo := repository.NewUserRepository(db)
 	sessionRepo := repository.NewSessionRepository(db)
@@ -52,6 +74,15 @@ func BootstrapAPI() (APIApp, error) {
 
 	v1 := app.Group("/api/v1")
 
+	postgresCheck := func(ctx context.Context) error {
+		return db.PingContext(ctx)
+	}
+	redisCheck := func(ctx context.Context) error {
+		return redisadapter.Ping(ctx, redisClient, cfg.Redis.ReadTimeout)
+	}
+	healthHandler := health.NewHandler(postgresCheck, redisCheck, time.Second)
+	v1.Get("/health", healthHandler.Health)
+
 	v1.Post("/auth/login", authHandler.Login)
 	v1.Post("/auth/logout", http.AuthMiddleware(userRepo, sessionRepo, cfg.Auth.CookieName), authHandler.Logout)
 
@@ -60,7 +91,7 @@ func BootstrapAPI() (APIApp, error) {
 		return c.JSON(fiber.Map{"message": "welcome to the protected area", "user_id": c.Locals("userID")})
 	})
 
-	return APIApp{Config: cfg, Logger: logger, App: app}, nil
+	return APIApp{Config: cfg, Logger: logger, App: app, DB: db, Redis: redisClient}, nil
 }
 
 func BootstrapCapture() (CaptureApp, error) {

@@ -7,5 +7,7 @@ import (
 )
 
 func RegisterRoutes(app *fiber.App, healthHandler *health.Handler) {
-	app.Get("/healthz", healthHandler.Healthz)
+	v1 := app.Group("/api/v1")
+	v1.Get("/health", healthHandler.Health)
+	app.Get("/healthz", healthHandler.Health)
 }
