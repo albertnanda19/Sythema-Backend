@@ -10,6 +10,7 @@ import (
 	httpapi "synthema/internal/app/api/http"
 	"synthema/internal/app/health"
 	"synthema/internal/config"
+	apihttp "synthema/internal/http"
 	"synthema/internal/observability"
 )
 
@@ -21,7 +22,7 @@ type Server struct {
 }
 
 func NewServer(cfg config.Config, logger *observability.Logger, healthHandler *health.Handler) *Server {
-	app := fiber.New()
+	app := fiber.New(fiber.Config{ErrorHandler: apihttp.FiberErrorHandler(logger)})
 
 	httpapi.RegisterRoutes(app, healthHandler)
 

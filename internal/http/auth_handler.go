@@ -1,7 +1,6 @@
 package http
 
 import (
-	"log/slog"
 	"net/mail"
 	"strings"
 	"time"
@@ -37,17 +36,17 @@ type LoginRequest struct {
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	var req LoginRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request"})
+		return Fail(c, fiber.StatusBadRequest, MsgInvalidRequest)
 	}
 	req.Email = strings.TrimSpace(req.Email)
 	if req.Email == "" || req.Password == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request"})
+		return Fail(c, fiber.StatusBadRequest, MsgInvalidRequest)
 	}
 	if len(req.Email) > 320 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request"})
+		return Fail(c, fiber.StatusBadRequest, MsgInvalidRequest)
 	}
 	if _, err := mail.ParseAddress(req.Email); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request"})
+		return Fail(c, fiber.StatusBadRequest, MsgInvalidRequest)
 	}
 
 	userAgent := strings.TrimSpace(c.Get("User-Agent"))
@@ -62,10 +61,9 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	user, session, err := h.authService.Authenticate(c.Context(), req.Email, req.Password, service.SessionMeta{UserAgent: userAgent, IPAddress: ipAddress})
 	if err != nil {
 		if err == service.ErrInvalidCredentials {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid credentials"})
+			return Fail(c, fiber.StatusUnauthorized, MsgInvalidCreds)
 		}
-		slog.Error("auth login failed", "err", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal server error"})
+		return err
 	}
 	maxAgeSeconds := int(time.Until(session.ExpiresAt).Seconds())
 	if maxAgeSeconds < 0 {
@@ -91,27 +89,28 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		roleNames = append(roleNames, r.Name)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"id":    user.ID,
-		"email": user.Email,
-		"roles": roleNames,
-	})
+	type loginResponse struct {
+		ID    any      `json:"id"`
+		Email string   `json:"email"`
+		Roles []string `json:"roles"`
+	}
+
+	return Success(c, fiber.StatusOK, MsgLoginSuccessful, loginResponse{ID: user.ID, Email: user.Email, Roles: roleNames})
 }
 
 // Logout handles user logout.
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 	sessionAny := c.Locals("authSession")
 	if sessionAny == nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return Fail(c, fiber.StatusUnauthorized, MsgUnauthorized)
 	}
 	session, ok := sessionAny.(*domain.AuthSession)
 	if !ok || session == nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return Fail(c, fiber.StatusUnauthorized, MsgUnauthorized)
 	}
 
 	if err := h.authService.RevokeSession(c.Context(), session.ID); err != nil {
-		slog.Error("auth logout failed", "err", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal server error"})
+		return err
 	}
 
 	c.Cookie(&fiber.Cookie{
@@ -125,5 +124,5 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 		MaxAge:   -1,
 	})
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "logout successful"})
+	return Success(c, fiber.StatusOK, MsgLogoutSuccessful, nil)
 }

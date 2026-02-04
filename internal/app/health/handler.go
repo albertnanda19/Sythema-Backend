@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+
+	apihttp "synthema/internal/http"
 )
 
 type Handler struct {
@@ -26,13 +28,11 @@ func (h *Handler) Health(c *fiber.Ctx) error {
 
 	services := map[string]string{}
 	overall := "ok"
-	statusCode := fiber.StatusOK
 
 	if h.postgresCheck != nil {
 		if err := h.postgresCheck(ctx); err != nil {
 			services["postgres"] = "unhealthy"
 			overall = "unhealthy"
-			statusCode = fiber.StatusServiceUnavailable
 		} else {
 			services["postgres"] = "ok"
 		}
@@ -41,14 +41,35 @@ func (h *Handler) Health(c *fiber.Ctx) error {
 		if err := h.redisCheck(ctx); err != nil {
 			services["redis"] = "unhealthy"
 			overall = "unhealthy"
-			statusCode = fiber.StatusServiceUnavailable
 		} else {
 			services["redis"] = "ok"
 		}
 	}
 
-	return c.Status(statusCode).JSON(fiber.Map{
-		"status":   overall,
+	return apihttp.Success(c, fiber.StatusOK, apihttp.MsgHealthOK, fiber.Map{
+		"overall":  overall,
 		"services": services,
 	})
+}
+
+func (h *Handler) Healthz(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(c.Context(), h.timeout)
+	defer cancel()
+
+	healthy := true
+	if h.postgresCheck != nil {
+		if err := h.postgresCheck(ctx); err != nil {
+			healthy = false
+		}
+	}
+	if h.redisCheck != nil {
+		if err := h.redisCheck(ctx); err != nil {
+			healthy = false
+		}
+	}
+
+	if !healthy {
+		return apihttp.Fail(c, fiber.StatusServiceUnavailable, apihttp.MsgHealthUnhealthy)
+	}
+	return apihttp.Success(c, fiber.StatusOK, apihttp.MsgHealthOK, nil)
 }

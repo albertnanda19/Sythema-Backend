@@ -10,6 +10,6 @@ import (
 func AuthMiddlewareLegacy(sessionRepo repository.SessionRepository) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		_ = sessionRepo
-		return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{"error": "not implemented"})
+		return Fail(c, fiber.StatusNotImplemented, MsgNotFound)
 	}
 }

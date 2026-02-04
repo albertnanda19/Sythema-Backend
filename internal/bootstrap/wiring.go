@@ -70,7 +70,7 @@ func BootstrapAPI() (APIApp, error) {
 
 	authHandler := http.NewAuthHandler(authService, cfg.Auth.CookieName, cfg.Auth.CookieSecure)
 
-	app := fiber.New()
+	app := fiber.New(fiber.Config{ErrorHandler: http.FiberErrorHandler(logger)})
 
 	v1 := app.Group("/api/v1")
 
@@ -82,13 +82,14 @@ func BootstrapAPI() (APIApp, error) {
 	}
 	healthHandler := health.NewHandler(postgresCheck, redisCheck, time.Second)
 	v1.Get("/health", healthHandler.Health)
+	app.Get("/healthz", healthHandler.Healthz)
 
 	v1.Post("/auth/login", authHandler.Login)
 	v1.Post("/auth/logout", http.AuthMiddleware(userRepo, sessionRepo, cfg.Auth.CookieName), authHandler.Logout)
 
 	api := v1.Group("", http.AuthMiddleware(userRepo, sessionRepo, cfg.Auth.CookieName))
 	api.Get("/protected", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"message": "welcome to the protected area", "user_id": c.Locals("userID")})
+		return http.Success(c, fiber.StatusOK, http.MsgProtectedOK, fiber.Map{"user_id": c.Locals("userID")})
 	})
 
 	return APIApp{Config: cfg, Logger: logger, App: app, DB: db, Redis: redisClient}, nil

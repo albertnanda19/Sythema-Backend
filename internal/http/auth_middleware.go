@@ -16,36 +16,36 @@ func AuthMiddleware(userRepo repository.UserRepository, sessionRepo repository.S
 	return func(c *fiber.Ctx) error {
 		sessionIDRaw := c.Cookies(cookieName)
 		if sessionIDRaw == "" {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+			return Fail(c, fiber.StatusUnauthorized, MsgUnauthorized)
 		}
 
 		sessionID, err := uuid.Parse(sessionIDRaw)
 		if err != nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+			return Fail(c, fiber.StatusUnauthorized, MsgUnauthorized)
 		}
 
 		session, err := sessionRepo.FindActiveByID(c.Context(), sessionID)
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal server error"})
+			return err
 		}
 		if session == nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+			return Fail(c, fiber.StatusUnauthorized, MsgUnauthorized)
 		}
 
 		user, err := userRepo.FindByID(c.Context(), session.UserID)
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal server error"})
+			return err
 		}
 		if user == nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+			return Fail(c, fiber.StatusUnauthorized, MsgUnauthorized)
 		}
 		if !user.IsActive {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+			return Fail(c, fiber.StatusUnauthorized, MsgUnauthorized)
 		}
 
 		roles, err := userRepo.ListRolesByUserID(c.Context(), user.ID)
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal server error"})
+			return err
 		}
 		user.Roles = roles
 
