@@ -27,9 +27,11 @@ type APIConfig struct {
 }
 
 type AuthConfig struct {
-	SessionTTL   time.Duration
-	CookieName   string
-	CookieSecure bool
+	SessionTTL     time.Duration
+	CookieName     string
+	CookieSecure   bool
+	CookieSameSite string
+	CookieDomain   string
 }
 
 type PostgresConfig struct {
@@ -151,6 +153,15 @@ func LoadFromEnv() (Config, error) {
 		cookieSecure = b
 	}
 
+	cookieSameSite := "Strict"
+	if v := os.Getenv("SYNTHEMA_AUTH_COOKIE_SAMESITE"); v != "" {
+		cookieSameSite = v
+	}
+	cookieDomain := ""
+	if v := os.Getenv("SYNTHEMA_AUTH_COOKIE_DOMAIN"); v != "" {
+		cookieDomain = v
+	}
+
 	cfg := Config{
 		AppName:     getenvDefault("SYNTHEMA_APP_NAME", "synthema"),
 		Environment: getenvDefault("SYNTHEMA_ENV", "dev"),
@@ -160,9 +171,11 @@ func LoadFromEnv() (Config, error) {
 			Port: port,
 		},
 		Auth: AuthConfig{
-			SessionTTL:   sessionTTL,
-			CookieName:   getenvDefault("SYNTHEMA_AUTH_COOKIE_NAME", "session_id"),
-			CookieSecure: cookieSecure,
+			SessionTTL:     sessionTTL,
+			CookieName:     getenvDefault("SYNTHEMA_AUTH_COOKIE_NAME", "session_id"),
+			CookieSecure:   cookieSecure,
+			CookieSameSite: cookieSameSite,
+			CookieDomain:   cookieDomain,
 		},
 		Postgres:            PostgresConfig{DSN: dsn},
 		Redis:               redisCfg,

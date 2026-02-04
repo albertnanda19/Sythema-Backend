@@ -15,14 +15,16 @@ import (
 
 // AuthHandler handles authentication-related HTTP requests.
 type AuthHandler struct {
-	authService  service.AuthService
-	cookieName   string
-	cookieSecure bool
+	authService    service.AuthService
+	cookieName     string
+	cookieSecure   bool
+	cookieSameSite string
+	cookieDomain   string
 }
 
 // NewAuthHandler creates a new AuthHandler.
-func NewAuthHandler(authService service.AuthService, cookieName string, cookieSecure bool) *AuthHandler {
-	return &AuthHandler{authService: authService, cookieName: cookieName, cookieSecure: cookieSecure}
+func NewAuthHandler(authService service.AuthService, cookieName string, cookieSecure bool, cookieSameSite, cookieDomain string) *AuthHandler {
+	return &AuthHandler{authService: authService, cookieName: cookieName, cookieSecure: cookieSecure, cookieSameSite: cookieSameSite, cookieDomain: cookieDomain}
 }
 
 // LoginRequest represents the request body for the login endpoint.
@@ -77,7 +79,8 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		HTTPOnly: true,
 		Secure:   h.cookieSecure,
 		Path:     "/",
-		SameSite: "Strict",
+		SameSite: h.cookieSameSite,
+		Domain:   h.cookieDomain,
 		MaxAge:   maxAgeSeconds,
 	})
 
@@ -120,7 +123,8 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 		HTTPOnly: true,
 		Secure:   h.cookieSecure,
 		Path:     "/",
-		SameSite: "Strict",
+		SameSite: h.cookieSameSite,
+		Domain:   h.cookieDomain,
 		MaxAge:   -1,
 	})
 

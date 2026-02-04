@@ -13,13 +13,15 @@ import (
 )
 
 type LogoutHandler struct {
-	authService  service.AuthService
-	cookieName   string
-	cookieSecure bool
+	authService    service.AuthService
+	cookieName     string
+	cookieSecure   bool
+	cookieSameSite string
+	cookieDomain   string
 }
 
-func NewLogoutHandler(authService service.AuthService, cookieName string, cookieSecure bool) *LogoutHandler {
-	return &LogoutHandler{authService: authService, cookieName: cookieName, cookieSecure: cookieSecure}
+func NewLogoutHandler(authService service.AuthService, cookieName string, cookieSecure bool, cookieSameSite, cookieDomain string) *LogoutHandler {
+	return &LogoutHandler{authService: authService, cookieName: cookieName, cookieSecure: cookieSecure, cookieSameSite: cookieSameSite, cookieDomain: cookieDomain}
 }
 
 func (h *LogoutHandler) Logout(c *fiber.Ctx) error {
@@ -41,7 +43,8 @@ func (h *LogoutHandler) Logout(c *fiber.Ctx) error {
 		HTTPOnly: true,
 		Secure:   h.cookieSecure,
 		Path:     "/",
-		SameSite: "Strict",
+		SameSite: h.cookieSameSite,
+		Domain:   h.cookieDomain,
 		MaxAge:   0,
 	})
 

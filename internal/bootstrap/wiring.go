@@ -75,7 +75,19 @@ func BootstrapAPI() (APIApp, error) {
 
 	authService := service.NewAuthService(userRepo, sessionRepo, cfg.Auth.SessionTTL)
 
-	authHandler := http.NewAuthHandler(authService, cfg.Auth.CookieName, cfg.Auth.CookieSecure)
+	cookieSecure := cfg.Auth.CookieSecure
+	cookieSameSite := cfg.Auth.CookieSameSite
+	cookieDomain := cfg.Auth.CookieDomain
+	// Dev-friendly overrides
+	if cfg.Environment == "dev" {
+		cookieSecure = false
+		if cookieSameSite == "Strict" {
+			cookieSameSite = "Lax"
+		}
+		cookieDomain = ""
+	}
+
+	authHandler := http.NewAuthHandler(authService, cfg.Auth.CookieName, cookieSecure, cookieSameSite, cookieDomain)
 
 	app := fiber.New(fiber.Config{ErrorHandler: http.FiberErrorHandler(logger)})
 	app.Use(middleware.RequestLogger(logger))
@@ -111,7 +123,7 @@ func BootstrapAPI() (APIApp, error) {
 
 	meHandler := authhandlers.NewMeHandler()
 	logoutMW := middleware.Logout(cfg.Auth.CookieName)
-	logoutHandler := authhandlers.NewLogoutHandler(authService, cfg.Auth.CookieName, cfg.Auth.CookieSecure)
+	logoutHandler := authhandlers.NewLogoutHandler(authService, cfg.Auth.CookieName, cookieSecure, cookieSameSite, cookieDomain)
 	routes.RegisterAuthRoutes(v1, authMW, meHandler, logoutMW, logoutHandler)
 
 	api := v1.Group("", authMW)
