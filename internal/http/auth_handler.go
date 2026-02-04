@@ -1,11 +1,12 @@
 package http
 
 import (
+	"errors"
 	"net/mail"
 	"strings"
 	"time"
 
-	"synthema/internal/domain"
+	authctx "synthema/internal/context"
 	appErrors "synthema/internal/errors"
 	"synthema/internal/service"
 
@@ -21,9 +22,6 @@ type AuthHandler struct {
 
 // NewAuthHandler creates a new AuthHandler.
 func NewAuthHandler(authService service.AuthService, cookieName string, cookieSecure bool) *AuthHandler {
-	if cookieName == "" {
-		cookieName = "session_id"
-	}
 	return &AuthHandler{authService: authService, cookieName: cookieName, cookieSecure: cookieSecure}
 }
 
@@ -35,6 +33,10 @@ type LoginRequest struct {
 
 // Login handles user login.
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
+	if h.cookieName == "" {
+		return appErrors.Internal(errors.New("auth cookie name is not configured"))
+	}
+
 	var req LoginRequest
 	if err := c.BodyParser(&req); err != nil {
 		return appErrors.InvalidRequest()
@@ -59,7 +61,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		ipAddress = ipAddress[:64]
 	}
 
-	user, session, err := h.authService.Authenticate(c.Context(), req.Email, req.Password, service.SessionMeta{UserAgent: userAgent, IPAddress: ipAddress})
+	user, session, err := h.authService.Authenticate(c.UserContext(), req.Email, req.Password, service.SessionMeta{UserAgent: userAgent, IPAddress: ipAddress})
 	if err != nil {
 		return err
 	}
@@ -96,18 +98,35 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	return Success(c, fiber.StatusOK, MsgLoginSuccessful, loginResponse{ID: user.ID, Email: user.Email, Roles: roleNames})
 }
 
-// Logout handles user logout.
-func (h *AuthHandler) Logout(c *fiber.Ctx) error {
-	sessionAny := c.Locals("authSession")
-	if sessionAny == nil {
-		return appErrors.Unauthorized()
-	}
-	session, ok := sessionAny.(*domain.AuthSession)
-	if !ok || session == nil {
+func (h *AuthHandler) Me(c *fiber.Ctx) error {
+	info, ok := authctx.GetAuthInfo(c.UserContext())
+	if !ok {
 		return appErrors.Unauthorized()
 	}
 
-	if err := h.authService.RevokeSession(c.Context(), session.ID); err != nil {
+	type meResponse struct {
+		ID    any      `json:"id"`
+		Email string   `json:"email"`
+		Roles []string `json:"roles"`
+	}
+
+	roles := make([]string, len(info.Roles))
+	copy(roles, info.Roles)
+	return Success(c, fiber.StatusOK, MsgMeOK, meResponse{ID: info.UserID, Email: info.Email, Roles: roles})
+}
+
+// Logout handles user logout.
+func (h *AuthHandler) Logout(c *fiber.Ctx) error {
+	if h.cookieName == "" {
+		return appErrors.Internal(errors.New("auth cookie name is not configured"))
+	}
+
+	sessionID, ok := authctx.SessionID(c.UserContext())
+	if !ok {
+		return appErrors.Unauthorized()
+	}
+
+	if err := h.authService.RevokeSession(c.UserContext(), sessionID); err != nil {
 		return err
 	}
 

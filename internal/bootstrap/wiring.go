@@ -8,9 +8,11 @@ import (
 	redisadapter "synthema/internal/adapters/redis"
 	"synthema/internal/app/health"
 	"synthema/internal/config"
+	authctx "synthema/internal/context"
 	"synthema/internal/http"
+	"synthema/internal/middleware"
 	"synthema/internal/observability"
-	"synthema/internal/repository"
+	"synthema/internal/repositories"
 	"synthema/internal/service"
 
 	"github.com/gofiber/fiber/v2"
@@ -64,8 +66,9 @@ func BootstrapAPI() (APIApp, error) {
 		return APIApp{}, err
 	}
 
-	userRepo := repository.NewUserRepository(db)
-	sessionRepo := repository.NewSessionRepository(db)
+	userRepo := repositories.NewUserRepository(db)
+	sessionRepo := repositories.NewSessionRepository(db)
+	authMW := middleware.Auth(userRepo, sessionRepo, cfg.Auth.CookieName)
 
 	authService := service.NewAuthService(userRepo, sessionRepo, cfg.Auth.SessionTTL)
 
@@ -87,11 +90,16 @@ func BootstrapAPI() (APIApp, error) {
 	app.Get("/healthz", healthHandler.Healthz)
 
 	v1.Post("/auth/login", authHandler.Login)
-	v1.Post("/auth/logout", http.AuthMiddleware(userRepo, sessionRepo, cfg.Auth.CookieName), authHandler.Logout)
+	v1.Get("/auth/me", authMW, authHandler.Me)
+	v1.Post("/auth/logout", authMW, authHandler.Logout)
 
-	api := v1.Group("", http.AuthMiddleware(userRepo, sessionRepo, cfg.Auth.CookieName))
+	api := v1.Group("", authMW)
 	api.Get("/protected", func(c *fiber.Ctx) error {
-		return http.Success(c, fiber.StatusOK, http.MsgProtectedOK, fiber.Map{"user_id": c.Locals("userID")})
+		userID, ok := authctx.UserID(c.UserContext())
+		if !ok {
+			return http.Success(c, fiber.StatusOK, http.MsgProtectedOK, fiber.Map{"user_id": nil})
+		}
+		return http.Success(c, fiber.StatusOK, http.MsgProtectedOK, fiber.Map{"user_id": userID})
 	})
 
 	return APIApp{Config: cfg, Logger: logger, App: app, DB: db, Redis: redisClient}, nil
